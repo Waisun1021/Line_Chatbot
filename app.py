@@ -77,6 +77,3 @@ def handle_message(event):
         )
         print("回應狀態：", res)
 
-
-if __name__ == "__main__":
-    app.run(port=5007)
