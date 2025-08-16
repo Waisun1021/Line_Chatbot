@@ -1,79 +1,44 @@
-from dotenv import load_dotenv
-from flask import Flask, request, abort
-from linebot.v3 import WebhookHandler
-from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import (
-    Configuration, ApiClient, MessagingApi,
-    ReplyMessageRequest, TextMessage
-)
-from linebot.v3.webhooks import (
-    MessageEvent, TextMessageContent
-)
-from openai import OpenAI
-import logging
-import os
-load_dotenv()
+# app.py — 診斷版
+from flask import Flask, request, abort, jsonify
+import os, logging
+
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
+# ---- 環境變數存在性檢查（不打印值）----
+REQUIRED_ENVS = ["CHANNEL_ACCESS_TOKEN", "CHANNEL_SECRET", "OPENAI_API_KEY"]
+env_status = {k: ("✅" if os.getenv(k) else "❌") for k in REQUIRED_ENVS}
 
+@app.get("/")
+def health():
+    # 簡單健康檢查；也把必填環境變數是否就緒顯示出來
+    return (
+        "OK\n"
+        + "\n".join(f"{k}: {env_status[k]}" for k in REQUIRED_ENVS)
+        + "\nRoutes: /, /env, /callback(GET for verify, POST for events)"
+    ), 200
 
+@app.get("/env")
+def show_env_status():
+    # 更詳細的 JSON 狀態（仍不暴露值）
+    return jsonify({
+        "required_envs": env_status,
+        "tips": "若有 ❌，請到 Vercel → Settings → Environment Variables 設定後 Redeploy。"
+    })
 
-CHANNEL_ACCESS_TOKEN = os.getenv('CHANNEL_ACCESS_TOKEN')
-CHANNEL_SECRET = os.getenv('CHANNEL_SECRET')
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
-
-
-configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
-handler = WebhookHandler(CHANNEL_SECRET)
-
-
-@app.route("/callback", methods=['POST'])
+@app.route("/callback", methods=["GET", "POST"])
 def callback():
-    signature = request.headers.get('X-Line-Signature', '')
-    body = request.get_data(as_text=True)
-    app.logger.info("Request body:\n" + body)
+    # LINE Developers 的 Verify 會發 GET
+    if request.method == "GET":
+        return "OK", 200
 
-    try:
-        handler.handle(body, signature)
-    except InvalidSignatureError:
-        app.logger.error("Invalid signature. Check your channel secret.")
-        abort(400)
+    # 這裡先不處理 LINE 事件，只驗證到這一步 server 沒崩潰
+    # 等確定環境變數都 ✅ 再換回正式版
+    if not all(os.getenv(k) for k in REQUIRED_ENVS):
+        abort(500, description="Server config error: some required envs are missing.")
+    return "OK", 200
 
-    return 'OK'
-
-@handler.add(MessageEvent, message=TextMessageContent)
-def handle_message(event):
-    user_text = event.message.text
-    print("使用者傳來的訊息：", user_text)
-
-    try:
-      
-        response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "你是一位由李柏叡開發的虛擬老師，專門在 LINE 上教導使用者各種程式語言與相關知識。你具備專業、清晰、耐心的教學風格，能以深入淺出的方式解說程式邏輯、語法概念與實作技巧，幫助不同程度的學生理解並掌握程式設計。請根據使用者的問題給予具體實用的建議、範例或解法，必要時可分步驟解釋。"
-                },
-                {"role": "user", "content": user_text}
-            ],
-            temperature=0.5
-        ) 
-
-        reply_text = response.choices[0].message.content.strip()
-    except Exception as e:
-        reply_text = f"GPT 回覆錯誤：{str(e)}"
-    a='柏叡ai-->'
-    reply_text =a+reply_text 
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
-        res = line_bot_api.reply_message_with_http_info(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=reply_text)]
-            )
-        )
-        print("回應狀態：", res)
-
+# 避免瀏覽器自動請求 favicon 造成噪音
+@app.get("/favicon.ico")
+def favicon():
+    return "", 204
