@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO)
 CHANNEL_ACCESS_TOKEN = os.getenv('CHANNEL_ACCESS_TOKEN')
 CHANNEL_SECRET = os.getenv('CHANNEL_SECRET')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-penai_client = OpenAI(
+openai_client = OpenAI(
     api_key=OPENAI_API_KEY,
     base_url="https://openrouter.ai/api/v1",
    
