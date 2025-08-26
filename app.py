@@ -22,7 +22,11 @@ logging.basicConfig(level=logging.INFO)
 CHANNEL_ACCESS_TOKEN = os.getenv('CHANNEL_ACCESS_TOKEN')
 CHANNEL_SECRET = os.getenv('CHANNEL_SECRET')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
+penai_client = OpenAI(
+    api_key=OPENAI_API_KEY,
+    base_url="https://openrouter.ai/api/v1",
+   
+)
 
 
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
@@ -51,7 +55,7 @@ def handle_message(event):
     try:
       
         response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="openai/gpt-oss-20b:free",
             messages=[
                 {
                     "role": "system",
